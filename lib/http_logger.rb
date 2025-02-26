@@ -2,6 +2,7 @@ require 'net/http'
 require 'uri'
 require 'set'
 require 'http_logger/configuration'
+require 'http_logger/version'
 
 # Usage:
 #
