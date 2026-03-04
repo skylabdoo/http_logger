@@ -21,7 +21,9 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = ["LICENSE.txt"]
   spec.require_paths = ["lib"]
 
+  spec.add_development_dependency "base64"
   spec.add_development_dependency "bundler", ">= 2.0"
+  spec.add_development_dependency "logger"
   spec.add_development_dependency "rake", ">= 13.0"
   spec.add_development_dependency "rspec", ">= 3.0"
   spec.add_development_dependency "webmock", ">= 3.0"
