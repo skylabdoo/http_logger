@@ -25,7 +25,9 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", ">= 13.0"
   spec.add_development_dependency "rspec", ">= 3.0"
   spec.add_development_dependency "webmock", ">= 3.0"
+  spec.add_development_dependency "bigdecimal"
+  spec.add_development_dependency "base64"
+  spec.add_development_dependency "logger"
   spec.add_development_dependency "debug", ">= 1.0"
   spec.add_development_dependency "bump", ">= 0.10"
 end
-

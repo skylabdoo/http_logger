@@ -195,6 +195,48 @@ describe HttpLogger do
     it { should include("<binary 41887 bytes>") }
   end
 
+  context "when binary request" do
+    let(:url) { "http://example.com/upload" }
+    let(:request) do
+      http = Net::HTTP.new(uri.host, uri.port)
+      request = Net::HTTP::Post.new(uri.path)
+      request['Content-Type'] = 'image/jpeg'
+      request.body = "\xFF\xD8\xFF\xDBbinarypayload".b
+      http.request(request)
+    end
+
+    it { should include("Request body") }
+    it { should include("<binary 17 bytes>") }
+    it { should_not include("binarypayload") }
+  end
+
+  context "when multipart request has binary and text parts" do
+    let(:url) { "http://example.com/upload" }
+    let(:boundary) { "turing-export-80cd207c6b0b5f0c" }
+    let(:request) do
+      http = Net::HTTP.new(uri.host, uri.port)
+      request = Net::HTTP::Post.new(uri.path)
+      request['Content-Type'] = "multipart/related; boundary=#{boundary}"
+      request.body = <<~BODY.chomp
+        --#{boundary}
+        Content-Type: application/json; charset=UTF-8
+
+        {"name":"IMG_20190921_152700.jpg","parents":["1LxERY9t0fCAJXJBvBSIGAVhP4IpD0Iyv"]}
+        --#{boundary}
+        Content-Type: image/jpeg
+
+        \xFF\xD8\xFF\xDBJPEGDATA
+        --#{boundary}--
+      BODY
+      http.request(request)
+    end
+
+    it { should include(%({"name":"IMG_20190921_152700.jpg","parents":["1LxERY9t0fCAJXJBvBSIGAVhP4IpD0Iyv"]})) }
+    it { should include("Content-Type: image/jpeg") }
+    it { should include("<binary 12 bytes>") }
+    it { should_not include("JPEGDATA") }
+  end
+
   after(:each) do
     HttpLogger.configuration.reset
   end

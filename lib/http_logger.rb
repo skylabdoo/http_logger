@@ -49,7 +49,7 @@ class HttpLogger
   ensure
     if require_logging?(http, request)
       log_request_url(http, request, start_time)
-      log_request_body(request)
+      log_request_body(request, request_body)
       log_request_headers(request)
       if defined?(response) && response
         log_response_code(response)
@@ -65,8 +65,15 @@ class HttpLogger
     content_type = response['Content-Type']
     return false if content_type.nil?
 
-    !content_type.start_with?('text/', 'application/json', 'application/xml', 'application/javascript', 'application/x-www-form-urlencoded', 'application/xhtml+xml', 'application/rss+xml', 'application/atom+xml', 'application/svg+xml', 'application/yaml')
+    !textual_content_type?(content_type)
 
+  end
+
+  def binary_request?(request)
+    content_type = request['Content-Type']
+    return false if content_type.nil?
+
+    !textual_content_type?(content_type)
   end
 
   def log_request_url(http, request, start_time)
@@ -93,11 +100,12 @@ class HttpLogger
 
   HTTP_METHODS_WITH_BODY = Set.new(%w(POST PUT GET PATCH))
 
-  def log_request_body(request)
+  def log_request_body(request, request_body = nil)
     if configuration.log_request_body
       if HTTP_METHODS_WITH_BODY.include?(request.method)
-        if (body = request.body) && !body.empty?
-          log("Request body", truncate_body(body))
+        body = request.body || request_body
+        if body && !body.empty?
+          log("Request body", format_request_body_for_log(request, body))
         end
       end
     end
@@ -198,8 +206,84 @@ class HttpLogger
     configuration.collapse_body_limit
   end
 
+  def textual_content_type?(content_type)
+    normalized = content_type.to_s.downcase
+    normalized.start_with?(
+      'text/',
+      'application/json',
+      'application/xml',
+      'application/javascript',
+      'application/x-www-form-urlencoded',
+      'application/xhtml+xml',
+      'application/rss+xml',
+      'application/atom+xml',
+      'application/svg+xml',
+      'application/yaml',
+    )
+  end
+
   def configuration
     self.class.configuration
+  end
+
+  def format_request_body_for_log(request, body)
+    content_type = request['Content-Type']
+
+    if multipart_content_type?(content_type)
+      return truncate_body(sanitize_multipart_binary_parts(body, multipart_boundary(content_type)))
+    end
+
+    binary_request?(request) ? "<binary #{body.bytesize} bytes>" : truncate_body(body)
+  end
+
+  def multipart_content_type?(content_type)
+    content_type.to_s.downcase.start_with?('multipart/')
+  end
+
+  def multipart_boundary(content_type)
+    match = content_type.to_s.match(/boundary="?([^";]+)"?/i)
+    match && match[1]
+  end
+
+  def sanitize_multipart_binary_parts(body, boundary)
+    return body unless boundary
+
+    binary_body = body.dup.force_encoding(Encoding::BINARY)
+    delimiter = "--#{boundary}".b
+    segments = binary_body.split(delimiter, -1)
+    return body if segments.size < 2
+
+    segments.each_with_index.map do |segment, index|
+      if index == 0
+        segment
+      elsif segment.start_with?("--")
+        "#{delimiter}#{segment}"
+      else
+        "#{delimiter}#{sanitize_multipart_segment(segment)}"
+      end
+    end.join
+  end
+
+  def sanitize_multipart_segment(segment)
+    separator = if segment.include?("\r\n\r\n")
+      "\r\n\r\n"
+    elsif segment.include?("\n\n")
+      "\n\n"
+    end
+    return segment unless separator
+
+    headers, part_body = segment.split(separator, 2)
+    return segment unless part_body
+
+    content_type = headers.each_line.find { |line| line.downcase.start_with?('content-type:') }
+    return segment unless content_type
+
+    part_content_type = content_type.split(':', 2).last.to_s.strip
+    return segment if textual_content_type?(part_content_type)
+
+    trailing_newline = part_body.end_with?("\r\n") ? "\r\n" : (part_body.end_with?("\n") ? "\n" : "")
+    payload = trailing_newline.empty? ? part_body : part_body[0...-trailing_newline.bytesize]
+    "#{headers}#{separator}<binary #{payload.bytesize} bytes>#{trailing_newline}"
   end
 end
 
