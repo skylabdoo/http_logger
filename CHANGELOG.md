@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.2]
+
+* Explicit dependencies for ruby 4.0
+* Fix binary multipart body logging
+
 ## [1.0.1]
 
 * Modernize gemspec
