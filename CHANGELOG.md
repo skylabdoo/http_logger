@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.3]
 
 * `filtered_headers` option: configurable list of headers logged as `<filtered>` (default `["Authorization"]`, unchanged behaviour)
 
