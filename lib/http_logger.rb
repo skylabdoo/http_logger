@@ -251,10 +251,20 @@ class HttpLogger
     return body unless filter
 
     begin
-      filter.call(body.dup, request_or_response)
+      if filter_arity(filter) == 1
+        filter.call(body.dup)
+      else
+        filter.call(body.dup, request_or_response)
+      end
     rescue => e
       "<body_filter raised #{e.class}>"
     end
+  end
+
+  # Procs, lambdas and Method objects answer #arity directly; any other
+  # callable answers through its #call method.
+  def filter_arity(filter)
+    filter.respond_to?(:arity) ? filter.arity : filter.method(:call).arity
   end
 
   def multipart_content_type?(content_type)

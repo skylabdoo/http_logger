@@ -329,6 +329,35 @@ describe HttpLogger do
         end
       end
 
+      context "with a one-argument filter" do
+        before(:each) do
+          HttpLogger.configuration.body_filter = lambda do |body|
+            body.gsub("AAA", "<filtered>")
+          end
+        end
+
+        it "calls it with the body alone" do
+          subject.should include('"access_token":"<filtered>"')
+          subject.should_not include("AAA")
+        end
+      end
+
+      context "with a callable object" do
+        before(:each) do
+          filter = Class.new do
+            def call(body)
+              body.gsub("AAA", "<filtered>")
+            end
+          end.new
+          HttpLogger.configuration.body_filter = filter
+        end
+
+        it "uses the arity of its call method" do
+          subject.should include('"access_token":"<filtered>"')
+          subject.should_not include("AAA")
+        end
+      end
+
       context "when the filter raises" do
         before(:each) do
           HttpLogger.configuration.body_filter = lambda do |body, request_or_response|

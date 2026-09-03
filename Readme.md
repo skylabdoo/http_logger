@@ -49,18 +49,61 @@ HttpLogger.configure do |c|
   # Default: ["Authorization"]. Setting it replaces the default rather than
   # adding to it; an empty list logs every header in full.
   c.filtered_headers = %w[Authorization X-Api-Key]
+
   # Called with each textual request or response body before it is truncated
-  # and logged, together with the Net::HTTP request or response it belongs
-  # to. Return the string to log. Binary and multipart bodies skip it.
-  # Use `is_a?(Net::HTTPResponse)` to tell the two apart. The body arrives
-  # ASCII-8BIT, so keep patterns ASCII-only or force_encoding a copy first.
-  # A filter that raises logs a placeholder instead of breaking the request.
-  # Default: nil
-  c.body_filter = lambda do |body, request_or_response|
+  # and logged. Return the string to log. Binary and multipart bodies skip
+  # it. Takes the body alone, or the body plus the Net::HTTP request or
+  # response it belongs to. Default: nil
+  c.body_filter = lambda do |body|
     body.gsub(/"(access|refresh)_token":\s*"[^"]*"/, '"\\1_token":"<filtered>"')
   end
 end
 ```
+
+### Writing a body filter
+
+**Return the new string.** The most common mistake is reaching for `gsub!`,
+which returns `nil` when it matches nothing. A `nil` return logs an empty
+body, so the moment a payload has no token in it the body disappears from
+your log:
+
+```ruby
+# BAD -- logs nothing at all for any body without a token
+c.body_filter = lambda { |body| body.gsub!("secret", "<filtered>") }
+
+# GOOD -- gsub always returns a string
+c.body_filter = lambda { |body| body.gsub("secret", "<filtered>") }
+```
+
+The filter is handed a copy, so mutating its argument cannot corrupt the
+body your application reads -- but the return value is still what gets
+logged.
+
+**Take one argument or two.** The second argument is the `Net::HTTP`
+request or response the body came from, for filters that need to branch:
+
+```ruby
+c.body_filter = lambda do |body, request_or_response|
+  if request_or_response.is_a?(Net::HTTPResponse)
+    body.gsub(/"token":"[^"]*"/, '"token":"<filtered>"')
+  else
+    body
+  end
+end
+```
+
+**Mind the encoding.** Response bodies arrive `ASCII-8BIT` -- `Net::HTTP`
+does not apply the `Content-Type` charset unless you set
+`response.body_encoding`. Request bodies keep whatever encoding your
+application gave them, usually `UTF-8`. A non-ASCII pattern against a
+binary body raises `Encoding::CompatibilityError`, so either keep patterns
+ASCII-only or `force_encoding` a copy first.
+
+**Failures are contained.** A filter that raises logs
+`<body_filter raised SomeErrorClass>` instead of the body, and never
+interrupts the HTTP call it is observing. The exception message is
+deliberately omitted, because it can quote the body the filter was
+supposed to mask.
 
 ## Alternative
 
