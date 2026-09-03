@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+* `filtered_headers` option: configurable list of headers logged as `<filtered>` (default `["Authorization"]`, unchanged behaviour)
+
 ## [1.0.2]
 
 * Explicit dependencies for ruby 4.0

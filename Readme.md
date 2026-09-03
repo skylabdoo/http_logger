@@ -44,6 +44,11 @@ HttpLogger.configure do |c|
 
   # Change default truncate limit. Default: 5000
   c.collapse_body_limit = 5000
+
+  # Header names whose values are logged as <filtered>, case-insensitive.
+  # Default: ["Authorization"]. Setting it replaces the default rather than
+  # adding to it; an empty list logs every header in full.
+  c.filtered_headers = %w[Authorization X-Api-Key]
 end
 ```
 

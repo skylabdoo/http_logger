@@ -94,8 +94,12 @@ class HttpLogger
   end
 
   def log_header(type, name, value)
-    value = "<filtered>" if name == AUTHORIZATION_HEADER
+    value = "<filtered>" if filtered_header?(name)
     log("HTTP #{type} header", "#{name}: #{value}")
+  end
+
+  def filtered_header?(name)
+    Array(configuration.filtered_headers).any? { |header| header.to_s.casecmp?(name.to_s) }
   end
 
   HTTP_METHODS_WITH_BODY = Set.new(%w(POST PUT GET PATCH))
