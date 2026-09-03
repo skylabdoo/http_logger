@@ -240,4 +240,51 @@ describe HttpLogger do
   after(:each) do
     HttpLogger.configuration.reset
   end
+
+  describe "filtered_headers" do
+    before(:each) do
+      HttpLogger.configuration.log_headers = true
+    end
+
+    let(:request_headers) do
+      {'Authorization' => "Bearer secret", 'X-Api-Key' => "key123"}
+    end
+
+    it "filters Authorization by default and leaves other headers alone" do
+      subject.should include("Authorization: <filtered>")
+      subject.should include("X-Api-Key: key123")
+    end
+
+    context "with a custom list" do
+      before(:each) do
+        HttpLogger.configuration.filtered_headers = %w[x-api-key]
+      end
+
+      it "matches case-insensitively and no longer filters Authorization" do
+        subject.should include("X-Api-Key: <filtered>")
+        subject.should include("Authorization: Bearer secret")
+      end
+    end
+
+    context "with an empty list" do
+      before(:each) do
+        HttpLogger.configuration.filtered_headers = []
+      end
+
+      it "logs every header in full" do
+        subject.should include("Authorization: Bearer secret")
+        subject.should include("X-Api-Key: key123")
+      end
+    end
+
+    context "with response headers" do
+      let(:response_headers) { {'Set-Cookie' => "session=abc"} }
+
+      before(:each) do
+        HttpLogger.configuration.filtered_headers = %w[Authorization Set-Cookie]
+      end
+
+      it { should include("Set-Cookie: <filtered>") }
+    end
+  end
 end

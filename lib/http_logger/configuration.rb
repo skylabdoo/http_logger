@@ -8,6 +8,7 @@ class HttpLogger
     attr_accessor :colorize
     attr_accessor :ignore
     attr_accessor :level
+    attr_accessor :filtered_headers
 
     def initialize
       reset
@@ -21,6 +22,7 @@ class HttpLogger
       self.collapse_body_limit = 5000
       self.ignore = []
       self.level = :debug
+      self.filtered_headers = ['Authorization']
     end
   end
 end
