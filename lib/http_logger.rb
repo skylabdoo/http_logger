@@ -244,9 +244,17 @@ class HttpLogger
 
   # Hands a textual request or response body to the configured body_filter
   # before it is truncated and logged. Binary and multipart bodies skip it.
+  # The filter gets a copy, and a filter that raises degrades the log line
+  # rather than the HTTP call it observes.
   def filter_body(body, request_or_response)
     filter = configuration.body_filter
-    filter ? filter.call(body, request_or_response) : body
+    return body unless filter
+
+    begin
+      filter.call(body.dup, request_or_response)
+    rescue => e
+      "<body_filter raised #{e.class}>"
+    end
   end
 
   def multipart_content_type?(content_type)

@@ -329,6 +329,38 @@ describe HttpLogger do
         end
       end
 
+      context "when the filter raises" do
+        before(:each) do
+          HttpLogger.configuration.body_filter = lambda do |body, request_or_response|
+            raise "boom"
+          end
+        end
+
+        it "logs a placeholder and leaves the response intact" do
+          subject.should include("<body_filter raised RuntimeError>")
+          subject.should_not include("AAA")
+        end
+
+        it "does not break the HTTP call" do
+          request.body.should == response_body
+        end
+      end
+
+      # WebMock hands the logger a detached body string, so the mutation guard
+      # is asserted directly against filter_body.
+      context "when the filter mutates the body in place" do
+        it "does not modify the string it was given" do
+          HttpLogger.configuration.body_filter = lambda do |body, request_or_response|
+            body.gsub!("AAA", "<filtered>")
+          end
+          original = +'{"access_token":"AAA"}'
+
+          HttpLogger.instance.send(:filter_body, original, nil)
+
+          original.should == '{"access_token":"AAA"}'
+        end
+      end
+
       context "with a binary response" do
         let(:response_headers) { {'Content-Type' => 'image/webp'} }
         let(:response_body) { File.read("#{File.dirname(__FILE__)}/image.webp") }

@@ -52,9 +52,12 @@ HttpLogger.configure do |c|
   # Called with each textual request or response body before it is truncated
   # and logged, together with the Net::HTTP request or response it belongs
   # to. Return the string to log. Binary and multipart bodies skip it.
-  # Use `is_a?(Net::HTTPResponse)` to tell the two apart. Default: nil
+  # Use `is_a?(Net::HTTPResponse)` to tell the two apart. The body arrives
+  # ASCII-8BIT, so keep patterns ASCII-only or force_encoding a copy first.
+  # A filter that raises logs a placeholder instead of breaking the request.
+  # Default: nil
   c.body_filter = lambda do |body, request_or_response|
-    body.gsub(/"(access|refresh)_token":"[^"]*"/, '"\\1_token":"<filtered>"')
+    body.gsub(/"(access|refresh)_token":\s*"[^"]*"/, '"\\1_token":"<filtered>"')
   end
 end
 ```
