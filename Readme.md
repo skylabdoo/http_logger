@@ -49,6 +49,13 @@ HttpLogger.configure do |c|
   # Default: ["Authorization"]. Setting it replaces the default rather than
   # adding to it; an empty list logs every header in full.
   c.filtered_headers = %w[Authorization X-Api-Key]
+  # Called with each textual request or response body before it is truncated
+  # and logged, together with the Net::HTTP request or response it belongs
+  # to. Return the string to log. Binary and multipart bodies skip it.
+  # Use `is_a?(Net::HTTPResponse)` to tell the two apart. Default: nil
+  c.body_filter = lambda do |body, request_or_response|
+    body.gsub(/"(access|refresh)_token":"[^"]*"/, '"\\1_token":"<filtered>"')
+  end
 end
 ```
 

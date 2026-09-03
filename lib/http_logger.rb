@@ -54,7 +54,7 @@ class HttpLogger
       if defined?(response) && response
         log_response_code(response)
         log_response_headers(response)
-        log_response_body(response.body, binary_response?(response))
+        log_response_body(response)
       end
     end
   end
@@ -127,15 +127,17 @@ class HttpLogger
     end
   end
 
-  def log_response_body(body, binary)
+  def log_response_body(response)
     if configuration.log_response_body
+      body = response.body
+      binary = binary_response?(response)
       if body.is_a?(Net::ReadAdapter)
         log("Response body", "<impossible to log>")
       else
         if body && !body.empty?
           log(
             "Response body",
-            binary ? "<binary #{body.length} bytes>" : truncate_body(body),)
+            binary ? "<binary #{body.length} bytes>" : truncate_body(filter_body(body, response)),)
         end
       end
     end
@@ -237,7 +239,14 @@ class HttpLogger
       return truncate_body(sanitize_multipart_binary_parts(body, multipart_boundary(content_type)))
     end
 
-    binary_request?(request) ? "<binary #{body.bytesize} bytes>" : truncate_body(body)
+    binary_request?(request) ? "<binary #{body.bytesize} bytes>" : truncate_body(filter_body(body, request))
+  end
+
+  # Hands a textual request or response body to the configured body_filter
+  # before it is truncated and logged. Binary and multipart bodies skip it.
+  def filter_body(body, request_or_response)
+    filter = configuration.body_filter
+    filter ? filter.call(body, request_or_response) : body
   end
 
   def multipart_content_type?(content_type)

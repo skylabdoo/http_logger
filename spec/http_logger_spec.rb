@@ -287,4 +287,57 @@ describe HttpLogger do
       it { should include("Set-Cookie: <filtered>") }
     end
   end
+
+  describe "body_filter" do
+    after(:each) do
+      HttpLogger.configuration.body_filter = nil
+    end
+
+    let(:url) { "http://example.com/token" }
+    let(:response_body) { '{"access_token":"AAA","expires_in":1800}' }
+
+    context "when not configured" do
+      it { should include('"access_token":"AAA"') }
+    end
+
+    context "when configured" do
+      let(:seen) { [] }
+
+      before(:each) do
+        seen_messages = seen
+        HttpLogger.configuration.body_filter = lambda do |body, message|
+          seen_messages << message
+          body.gsub("AAA", "<filtered>").gsub("hello", "<filtered>")
+        end
+      end
+
+      it "logs what the filter returns and passes the response" do
+        subject.should include('"access_token":"<filtered>"')
+        subject.should include('"expires_in":1800')
+        subject.should_not include("AAA")
+        seen.last.should be_a(Net::HTTPResponse)
+      end
+
+      context "with a request body" do
+        let(:request) do
+          Net::HTTP.post_form(uri, :a => 'hello', :b => 1)
+        end
+
+        it "filters the request body and passes the request" do
+          subject.should include("a=<filtered>&b=1")
+          seen.first.should be_a(Net::HTTP::Post)
+        end
+      end
+
+      context "with a binary response" do
+        let(:response_headers) { {'Content-Type' => 'image/webp'} }
+        let(:response_body) { File.read("#{File.dirname(__FILE__)}/image.webp") }
+
+        it "is not called" do
+          subject.should include("<binary 41887 bytes>")
+          seen.should be_empty
+        end
+      end
+    end
+  end
 end
