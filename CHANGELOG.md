@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 * `body_filter` option: a callable that can rewrite a textual request or response body before it is logged
+* Fix infinite recursion on a real request when WebMock is loaded, and log such a request once instead of twice
 
 ## [1.0.3]
 

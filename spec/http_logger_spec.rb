@@ -241,6 +241,74 @@ describe HttpLogger do
     HttpLogger.configuration.reset
   end
 
+  # A request can pass through the logging wrapper more than once: WebMock's
+  # Net::HTTP subclass and Net::HTTP itself are both patched, and an unstarted
+  # Net::HTTP starts itself and re-enters #request. Every entry shape must log
+  # exactly once and never recurse.
+  context "with a real request" do
+    let(:server) { TCPServer.new("127.0.0.1", 0) }
+    let(:url) { "http://127.0.0.1:#{server.addr[1]}/real" }
+
+    before do
+      WebMock.reset!
+      @server_thread = Thread.new do
+        socket = server.accept
+        loop { line = socket.gets; break if line.nil? || line == "\r\n" }
+        socket.write("HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nreal")
+        socket.close
+      end
+    end
+
+    after do
+      WebMock.enable!
+      WebMock.disable_net_connect!
+      @server_thread.join(2)
+      server.close
+    end
+
+    shared_examples "logged once" do
+      it "logs the request exactly once" do
+        subject.scan(url).size.should == 1
+        subject.should include("Response body")
+      end
+    end
+
+    context "that WebMock lets through" do
+      before { WebMock.allow_net_connect! }
+
+      context "on a started connection" do
+        include_examples "logged once"
+      end
+
+      context "on an unstarted Net::HTTP instance" do
+        let(:request) { Net::HTTP.new(uri.host, uri.port).request(Net::HTTP::Get.new(uri.path)) }
+        include_examples "logged once"
+      end
+    end
+
+    context "with WebMock disabled" do
+      before { WebMock.disable! }
+
+      context "on a started connection" do
+        include_examples "logged once"
+      end
+
+      context "on an unstarted Net::HTTP instance" do
+        let(:request) { Net::HTTP.new(uri.host, uri.port).request(Net::HTTP::Get.new(uri.path)) }
+        include_examples "logged once"
+      end
+    end
+  end
+
+  context "when the request raises" do
+    before { stub_request(:any, url).to_raise(SocketError) }
+
+    it "clears the in-flight registry" do
+      lambda { request }.should raise_error(SocketError)
+      HttpLogger.instance.send(:requests_in_flight).should be_empty
+    end
+  end
+
   describe "filtered_headers" do
     before(:each) do
       HttpLogger.configuration.log_headers = true
