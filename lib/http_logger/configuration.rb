@@ -9,6 +9,7 @@ class HttpLogger
     attr_accessor :ignore
     attr_accessor :level
     attr_accessor :filtered_headers
+    attr_accessor :body_filter
 
     def initialize
       reset
@@ -23,6 +24,7 @@ class HttpLogger
       self.ignore = []
       self.level = :debug
       self.filtered_headers = ['Authorization']
+      self.body_filter = nil
     end
   end
 end
