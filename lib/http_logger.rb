@@ -54,7 +54,7 @@ class HttpLogger
       if defined?(response) && response
         log_response_code(response)
         log_response_headers(response)
-        log_response_body(response.body, binary_response?(response))
+        log_response_body(response)
       end
     end
   end
@@ -127,15 +127,17 @@ class HttpLogger
     end
   end
 
-  def log_response_body(body, binary)
+  def log_response_body(response)
     if configuration.log_response_body
+      body = response.body
+      binary = binary_response?(response)
       if body.is_a?(Net::ReadAdapter)
         log("Response body", "<impossible to log>")
       else
         if body && !body.empty?
           log(
             "Response body",
-            binary ? "<binary #{body.length} bytes>" : truncate_body(body),)
+            binary ? "<binary #{body.length} bytes>" : truncate_body(filter_body(body, response)),)
         end
       end
     end
@@ -237,7 +239,32 @@ class HttpLogger
       return truncate_body(sanitize_multipart_binary_parts(body, multipart_boundary(content_type)))
     end
 
-    binary_request?(request) ? "<binary #{body.bytesize} bytes>" : truncate_body(body)
+    binary_request?(request) ? "<binary #{body.bytesize} bytes>" : truncate_body(filter_body(body, request))
+  end
+
+  # Hands a textual request or response body to the configured body_filter
+  # before it is truncated and logged. Binary and multipart bodies skip it.
+  # The filter gets a copy, and a filter that raises degrades the log line
+  # rather than the HTTP call it observes.
+  def filter_body(body, request_or_response)
+    filter = configuration.body_filter
+    return body unless filter
+
+    begin
+      if filter_arity(filter) == 1
+        filter.call(body.dup)
+      else
+        filter.call(body.dup, request_or_response)
+      end
+    rescue => e
+      "<body_filter raised #{e.class}>"
+    end
+  end
+
+  # Procs, lambdas and Method objects answer #arity directly; any other
+  # callable answers through its #call method.
+  def filter_arity(filter)
+    filter.respond_to?(:arity) ? filter.arity : filter.method(:call).arity
   end
 
   def multipart_content_type?(content_type)

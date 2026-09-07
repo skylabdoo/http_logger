@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+* `body_filter` option: a callable that can rewrite a textual request or response body before it is logged
+
 ## [1.0.3]
 
 * `filtered_headers` option: configurable list of headers logged as `<filtered>` (default `["Authorization"]`, unchanged behaviour)
