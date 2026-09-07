@@ -43,7 +43,23 @@ class HttpLogger
     @instance ||= HttpLogger.new
   end
 
-  def perform(http, request, request_body)
+  # A request passes through this wrapper more than once: Net::HTTP and
+  # WebMock's subclass are both wrapped, and an unstarted Net::HTTP starts
+  # itself and re-enters #request. The outermost pass that require_logging?
+  # accepts claims the request; passes nested inside it only yield.
+  def perform(http, request, request_body, &block)
+    return yield if requests_in_flight.key?(request)
+    return perform_logged(http, request, request_body, &block) unless http.started? || webmock?(http, request)
+
+    requests_in_flight[request] = true
+    begin
+      perform_logged(http, request, request_body, &block)
+    ensure
+      requests_in_flight.delete(request)
+    end
+  end
+
+  def perform_logged(http, request, request_body)
     start_time = Time.now
     response = yield
   ensure
@@ -60,6 +76,10 @@ class HttpLogger
   end
 
   protected
+
+  def requests_in_flight
+    Thread.current[:http_logger_requests_in_flight] ||= {}.compare_by_identity
+  end
 
   def binary_response?(response)
     content_type = response['Content-Type']
@@ -291,13 +311,16 @@ class HttpLogger
   end
 end
 
+# The wrapped method is called through the UnboundMethod captured here, not by
+# name: when both Net::HTTP and a subclass (WebMock's) are wrapped, a
+# same-named alias resolves to the subclass copy from the parent's wrapper and
+# the two recurse into each other.
 block = lambda do |a|
-  alias request_without_net_http_logger request
-  def request(request, body = nil, &block)
+  original = instance_method(:request)
+  define_method(:request) do |request, body = nil, &block|
     HttpLogger.perform(self, request, body) do
-      request_without_net_http_logger(request, body, &block)
+      original.bind(self).call(request, body, &block)
     end
-
   end
 end
 

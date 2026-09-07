@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+* Fix infinite recursion on a real request when WebMock is loaded, and log such a request once instead of twice
+
 ## [1.0.3]
 
 * `filtered_headers` option: configurable list of headers logged as `<filtered>` (default `["Authorization"]`, unchanged behaviour)
